@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+import { test, expect } from '@playwright/test';
 
 test('Runner-Seite lädt ohne Fehler', async ({ page }) => {
   const errors = [];

@@ -1,7 +1,8 @@
-const { defineConfig, devices } = require('@playwright/test');
+import { defineConfig, devices } from '@playwright/test';
 
-module.exports = defineConfig({
+export default defineConfig({
   testDir: './tests',
+  testMatch: '**/*.spec.js',
   timeout: 10000,
   retries: 1,
   use: {
@@ -13,7 +14,7 @@ module.exports = defineConfig({
     { name: 'mobile',   use: { ...devices['Pixel 5'] } },
   ],
   webServer: {
-    command: 'npx serve . -p 3000 -s',
+    command: 'npx serve . -p 3000',
     port: 3000,
     reuseExistingServer: !process.env.CI,
   },
