@@ -36,11 +36,16 @@ header {
 .logo {
   font-family: var(--font-game);
   font-size: clamp(1rem, 5vw, 1.8rem);
-  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+
+.logo-text {
+  background: linear-gradient(90deg, #7b2fff, #00d4ff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: 0.5rem;
+  display: inline;
 }
 
 .subtitle {
