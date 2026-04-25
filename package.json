@@ -1,12 +1,16 @@
 {
   "name": "games4me",
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
-    "test": "playwright test",
-    "test:ui": "playwright test --ui"
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test": "vitest run && playwright test"
   },
   "devDependencies": {
     "@playwright/test": "^1.44.0",
-    "serve": "^14.2.3"
+    "serve": "^14.2.3",
+    "vitest": "^1.6.0"
   }
 }

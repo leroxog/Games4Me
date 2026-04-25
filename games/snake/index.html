@@ -15,7 +15,6 @@
   <canvas id="canvas"></canvas>
   <p class="hint" id="hint">Tippe / Drücke eine Taste zum Starten</p>
 
-  <!-- On-screen D-Pad (shown on touch devices) -->
   <div class="controls" id="dpad" aria-label="Richtungssteuerung">
     <button class="ctrl-btn ctrl-up"    id="btn-up"    aria-label="Oben">▲</button>
     <button class="ctrl-btn ctrl-left"  id="btn-left"  aria-label="Links">◀</button>
@@ -23,7 +22,9 @@
     <button class="ctrl-btn ctrl-right" id="btn-right" aria-label="Rechts">▶</button>
   </div>
 
-  <script>
+  <script type="module">
+    import { createSnake, placeFood, step, isOpposite } from './logic.js';
+
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const scoreEl = document.getElementById('score');
@@ -47,35 +48,24 @@
     let snake, dir, nextDir, food, score, best = 0, running = false, started = false, loop;
 
     function init() {
-      const mid = Math.floor(cols / 2);
-      snake   = [{x: mid, y: mid}, {x: mid - 1, y: mid}, {x: mid - 2, y: mid}];
-      dir     = {x: 1, y: 0};
-      nextDir = {x: 1, y: 0};
+      snake   = createSnake(cols, rows);
+      dir     = { x: 1, y: 0 };
+      nextDir = { x: 1, y: 0 };
       score   = 0;
+      food    = placeFood(snake, cols, rows);
       scoreEl.textContent = 0;
-      placeFood();
       draw();
-    }
-
-    function placeFood() {
-      let pos;
-      do {
-        pos = {x: Math.floor(Math.random() * cols), y: Math.floor(Math.random() * rows)};
-      } while (snake.some(s => s.x === pos.x && s.y === pos.y));
-      food = pos;
     }
 
     function draw() {
       ctx.fillStyle = '#0d0d0d';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Food
       ctx.fillStyle = '#00d4ff';
       ctx.beginPath();
       ctx.arc(food.x * CELL + CELL / 2, food.y * CELL + CELL / 2, CELL / 2 - 2, 0, Math.PI * 2);
       ctx.fill();
 
-      // Snake
       snake.forEach((seg, i) => {
         ctx.fillStyle = i === 0 ? '#7b2fff' : '#a855f7';
         ctx.beginPath();
@@ -84,24 +74,19 @@
       });
     }
 
-    function step() {
-      dir = {...nextDir};
-      const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+    function tick() {
+      dir = { ...nextDir };
+      const result = step(snake, dir, food, cols, rows);
 
-      if (head.x < 0 || head.x >= cols || head.y < 0 || head.y >= rows ||
-          snake.some(s => s.x === head.x && s.y === head.y)) {
-        gameOver();
-        return;
-      }
+      if (result.gameOver) { gameOver(); return; }
 
-      snake.unshift(head);
-      if (head.x === food.x && head.y === food.y) {
+      snake = result.snake;
+      food  = result.food;
+
+      if (result.ateFood) {
         score++;
         scoreEl.textContent = score;
         if (score > best) { best = score; bestEl.textContent = best; }
-        placeFood();
-      } else {
-        snake.pop();
       }
       draw();
     }
@@ -129,11 +114,9 @@
       running = true;
       started = true;
       hintEl.textContent = '';
-      const speed = 150;
-      loop = setInterval(step, speed);
+      loop = setInterval(tick, 150);
     }
 
-    // Keyboard
     const keyMap = {
       ArrowUp: {x:0,y:-1}, ArrowDown: {x:0,y:1}, ArrowLeft: {x:-1,y:0}, ArrowRight: {x:1,y:0},
       w: {x:0,y:-1}, s: {x:0,y:1}, a: {x:-1,y:0}, d: {x:1,y:0},
@@ -141,20 +124,17 @@
     document.addEventListener('keydown', e => {
       if (!started) { start(); return; }
       const d = keyMap[e.key];
-      if (d && !(d.x === -dir.x && d.y === -dir.y)) nextDir = d;
+      if (d && !isOpposite(dir, d)) nextDir = d;
     });
 
-    // D-Pad
     function setDir(d) {
-      if (!started) { start(); }
-      if (!(d.x === -dir.x && d.y === -dir.y)) nextDir = d;
+      if (!started) { start(); return; }
+      if (!isOpposite(dir, d)) nextDir = d;
     }
     document.getElementById('btn-up').addEventListener('click',    () => setDir({x:0,y:-1}));
     document.getElementById('btn-down').addEventListener('click',  () => setDir({x:0,y:1}));
     document.getElementById('btn-left').addEventListener('click',  () => setDir({x:-1,y:0}));
     document.getElementById('btn-right').addEventListener('click', () => setDir({x:1,y:0}));
-
-    // Tap canvas to start
     canvas.addEventListener('click', () => { if (!started) start(); });
 
     init();
