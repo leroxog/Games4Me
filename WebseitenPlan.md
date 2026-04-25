@@ -1,7 +1,7 @@
 # Plan: Mini Games Website
 
 ## Context
-Wir bauen eine Gaming-Website mit Kacheln auf der Startseite. Klick auf eine Kachel öffnet das jeweilige Spiel. Die Seite wird auf GitHub Pages gehostet (statisch, kein Backend). Tests laufen mit Playwright.
+Wir bauen eine Gaming-Website mit Kacheln auf der Startseite. Klick auf eine Kachel öffnet das jeweilige Spiel. Die Seite wird auf GitHub Pages gehostet (statisch, kein Backend). Tests laufen mit Playwright (E2E) und Vitest (Unit).
 
 **Hinweis zu Subway Surfers & Geometry Dash:** Diese sind urheberrechtlich geschützt. Wir bauen vereinfachte, inspirierte Versionen:
 - "Endless Runner" (Subway Surfers-inspiriert): Figur läuft, Hindernissen ausweichen
@@ -13,123 +13,132 @@ Wir bauen eine Gaming-Website mit Kacheln auf der Startseite. Klick auf eine Kac
 
 ```
 WebseiteLevent/
-├── index.html                  # Startseite mit Spielkacheln
+├── index.html                      # Startseite mit 2×2 Spielkacheln
 ├── css/
-│   └── style.css               # Dark Gaming Theme (CSS Grid, Hover-Effekte)
+│   └── style.css                   # Dark Gaming Theme (CSS Grid, Mobile First)
+├── assets/
+│   ├── snake.png                   # Vorschaubild Snake-Kachel
+│   └── tetris.png                  # Vorschaubild Tetris-Kachel
 ├── games/
-│   ├── snake/index.html        # Snake (Canvas)
-│   ├── snake/logic.js          # Snake Spiellogik (pure Funktionen)
-│   ├── tetris/index.html       # Tetris (Canvas)
-│   ├── tetris/logic.js         # Tetris Spiellogik
-│   ├── runner/index.html       # Endless Runner (Canvas)
-│   ├── runner/logic.js         # Runner Spiellogik
-│   ├── rhythmjump/index.html   # Rhythm Jump (Canvas)
-│   └── rhythmjump/logic.js     # Rhythm Jump Spiellogik
+│   ├── snake/
+│   │   ├── index.html              # Snake (Canvas, Swipe/Tastatur)
+│   │   └── logic.js               # Pure Funktionen: step, collides, placeFood
+│   ├── tetris/
+│   │   ├── index.html              # Tetris (Canvas, Tastatur)
+│   │   └── logic.js               # Pure Funktionen: rotate, collides, clearLines
+│   ├── runner/
+│   │   ├── index.html              # Endless Runner (Canvas)
+│   │   └── logic.js               # Pure Funktionen: updatePlayer, jump, collision
+│   └── rhythmjump/
+│       ├── index.html              # Rhythm Jump (Canvas)
+│       └── logic.js               # Pure Funktionen: updatePlayer, jump, spawnSpike
 ├── tests/
-│   ├── navigation.spec.js      # Startseite & Kachel-Navigation (E2E)
-│   ├── snake.spec.js           # Snake lädt & Steuerung (E2E)
-│   ├── tetris.spec.js          # Tetris lädt & Steuerung (E2E)
-│   ├── runner.spec.js          # Runner lädt (E2E)
-│   ├── rhythmjump.spec.js      # Rhythm Jump lädt (E2E)
-│   ├── snake.logic.test.js     # Snake Unit Tests
-│   ├── tetris.logic.test.js    # Tetris Unit Tests
-│   ├── runner.logic.test.js    # Runner Unit Tests
-│   └── rhythmjump.logic.test.js# Rhythm Jump Unit Tests
+│   ├── navigation.spec.js          # E2E: Startseite & Kachel-Navigation
+│   ├── snake.spec.js               # E2E: Snake (12 Tests, inkl. Touch/Swipe)
+│   ├── tetris.spec.js              # E2E: Tetris lädt & Steuerung
+│   ├── runner.spec.js              # E2E: Runner lädt & Steuerung
+│   ├── rhythmjump.spec.js          # E2E: Rhythm Jump lädt & Steuerung
+│   ├── snake.logic.test.js         # Unit: Snake (17 Tests)
+│   ├── tetris.logic.test.js        # Unit: Tetris
+│   ├── runner.logic.test.js        # Unit: Runner
+│   └── rhythmjump.logic.test.js    # Unit: Rhythm Jump
 ├── playwright.config.js
+├── vitest.config.js
 └── package.json
 ```
 
 ---
 
-## Phase 1 – Grundstruktur & Startseite
+## Phase 1 – Grundstruktur & Startseite ✅
 
 **index.html**
-- 4 Kacheln im CSS Grid mit animierten Canvas-Vorschauen
-- Hover-Effekt: Kachel leuchtet auf, leichte Skalierung
+- 2×2 Kacheln (immer 2 Spalten), quadratisch (`aspect-ratio: 1/1`)
+- Snake & Tetris: `<img>` aus `assets/` (statische Vorschaubilder)
+- Runner & Rhythm: Canvas mit gezeichneter Vorschau (Vanilla JS)
+- Logo "Games4Me" mit Lila→Blau-Farbverlauf (`#7b2fff` → `#00d4ff`)
+- Kein Spielname auf Kacheln — rein visuell
 
 **css/style.css — Mobile First**
 - Dark Mode: `#0d0d0d` Hintergrund, `#1a1a2e` Karten
 - Akzentfarbe: Neon-Lila/Cyan (`#7b2fff`, `#00d4ff`)
 - Google Font: "Press Start 2P" für Gaming-Look
-- **Mobile First:** 1 Spalte als Basis, ab 600px 2 Spalten
-- Kacheln mindestens 48px touch targets
+- Immer 2 Spalten, Kacheln mindestens 48px touch targets
 - `viewport meta` tag: `width=device-width, initial-scale=1`
-- Kein Hover-only — Touch-Feedback via `:active` statt nur `:hover`
+- Touch-Feedback via `:active`
 
 ---
 
-## Phase 2 – Spiele (je eigenständige HTML-Seite)
+## Phase 2 – Spiele ✅
 
 Jedes Spiel:
 - Eigenständige `index.html` mit Canvas
-- Spiellogik in `logic.js` (pure Funktionen, testbar)
-- "← Zurück" Button zur Startseite
-- Spiellogik komplett in Vanilla JS (kein Framework)
-- Startet erst wenn Nutzer Taste drückt / klickt
+- Spiellogik in separater `logic.js` (pure Funktionen, unit-testbar)
+- "← Zurück"-Button zur Startseite
+- Startet erst bei Tastendruck / Touch
 
-### Snake
-- Canvas passt sich per JS an Bildschirmbreite an (max 400px)
-- **Mobile:** On-Screen D-Pad (4 Buttons: ↑↓←→)
-- **Desktop:** WASD / Pfeiltasten
+### Snake ✅
+- Canvas max 400px, skaliert auf kleinen Screens
+- **Mobile:** Wischen auf dem Canvas → Schlange folgt Wischrichtung (touchstart/touchmove)
+- **Desktop:** WASD und Pfeiltasten; visuelle Tastatur wird eingeblendet (nicht klickbar)
+  - Tasten leuchten beim Drücken auf (CSS `.active`)
+  - Nur auf Desktop sichtbar: `@media (hover: hover) and (pointer: fine)`
 - Score-Anzeige, Game Over Screen mit Neustart
 
-### Tetris
-- Canvas max 300px breit, skaliert auf kleinen Screens
-- **Mobile:** On-Screen Buttons (Links, Rechts, Drehen, Fallen)
-- **Desktop:** Tastatursteuerung
+### Tetris ✅
+- Canvas max 300px, skaliert auf kleinen Screens
+- **Desktop:** Pfeiltasten (links/rechts/drehen/fallen)
+- **Mobile:** Tastendruck / Tastatur-Steuerung
 
-### Endless Runner (Subway-inspiriert)
+### Endless Runner ✅
 - Figur läuft automatisch
-- **Mobile:** Tap = Springen
-- **Desktop:** Leertaste = Springen
+- **Alle Geräte:** Leertaste / Tap = Springen
 - Zufällige Hindernisse, steigernde Geschwindigkeit
 
-### Rhythm Jump (GD-inspiriert)
-- Block springt auf Tap / Klick / Leertaste (gleiche Steuerung für alle)
-- Hindernisse im festen Rhythmus, einfache Levels
+### Rhythm Jump ✅
+- Block springt auf Tap / Klick / Leertaste
+- Hindernisse im festen Rhythmus
 
 ---
 
-## Phase 3 – Teststrategie
+## Phase 3 – Teststrategie ✅
 
 ### Testpyramide
 
 ```
-        [E2E – Playwright]         ← wenige, hoher Wert
-      Navigation, Game-Load, Touch
-    ────────────────────────────────
-      [Integration – Playwright]   ← mittel
-    Spiellogik-Flows, Steuerung
-  ──────────────────────────────────
-    [Unit – Vitest]                ← viele, schnell
-  Spielfunktionen, Kollision, Score
+        [E2E – Playwright]              ← Navigation, Game-Load, Touch/Swipe
+      ──────────────────────────────────
+        [Unit – Vitest]                 ← Spiellogik, Kollision, Score
 ```
 
-### Ebene 1 — Unit Tests (Vitest)
+### Ebene 1 — Unit Tests (Vitest) ✅
 
-Spiellogik als pure Funktionen isoliert testen:
+Spiellogik als pure Funktionen in `logic.js` isoliert testen:
 
-| Datei | Funktion | Testfall |
-|-------|----------|----------|
-| `games/snake/logic.js` | `step()`, `collides()`, `placeFood()` | Wandkollision, Selbstkollision, Wachstum |
-| `games/tetris/logic.js` | `rotate()`, `collides()`, `clearLines()` | Rotation, Blockierung, Linien löschen |
-| `games/runner/logic.js` | `update()`, Kollisionsprüfung | Sprung-Physik, Hindernis-Kollision |
-| `games/rhythmjump/logic.js` | Spike-Spawn, Kollision | Beat-Intervall, Kollisionsbox |
+| Datei | Funktionen | Tests |
+|-------|-----------|-------|
+| `games/snake/logic.js` | `step()`, `isOutOfBounds()`, `isSelfCollision()`, `isOpposite()`, `placeFood()` | 17 Tests |
+| `games/tetris/logic.js` | `rotate()`, `collides()`, `clearLines()`, `scoreForLines()`, `randomPiece()` | Unit Tests |
+| `games/runner/logic.js` | `updatePlayer()`, `jump()`, `collidesWithObstacle()`, `calcSpeed()` | Unit Tests |
+| `games/rhythmjump/logic.js` | `updatePlayer()`, `jump()`, `collidesWithSpike()`, `shouldSpawn()` | Unit Tests |
 
-### Ebene 2 — E2E Tests (Playwright)
+**Ausführung:** `npm run test:unit` → Vitest
 
-| Test | Was wird geprüft |
-|------|-----------------|
+### Ebene 2 — E2E Tests (Playwright) ✅
+
+| Datei | Tests | Was wird geprüft |
+|-------|-------|-----------------|
 | `navigation.spec.js` | Startseite lädt, alle 4 Kacheln sichtbar, Klick öffnet Spiel |
-| `snake.spec.js` | Seite lädt ohne JS-Fehler, Canvas vorhanden, Steuerung reagiert |
-| `tetris.spec.js` | Seite lädt, Canvas vorhanden |
-| `runner.spec.js` | Seite lädt, Canvas vorhanden |
-| `rhythmjump.spec.js` | Seite lädt, Canvas vorhanden |
-| Mobile Viewport (375px) | Alle Kacheln sichtbar, Touch-Buttons vorhanden |
+| `snake.spec.js` | 12 | Laden ohne JS-Fehler, Zurück-Button, Pfeiltasten, WASD, alle Tasten, kein D-Pad, visuelle Tastatur-Elemente, Taste leuchtet auf, Touch-Start, Wischen rechts, Wischen unten |
+| `tetris.spec.js` | 3 | Laden, Zurück-Button, Tastendruck startet Spiel |
+| `runner.spec.js` | 3 | Laden, Zurück-Button, Leertaste startet Spiel |
+| `rhythmjump.spec.js` | 3 | Laden, Zurück-Button, Leertaste startet Spiel |
 
-### Ebene 3 — Visuelle Regressionstests (Playwright Screenshots)
+**Browser:** Desktop Chromium + Mobile Pixel 5 Emulation  
+**Ausführung:** `npm run test:e2e` → Playwright
 
-- Beim ersten Lauf Baseline-Screenshots speichern
+### Ebene 3 — Visuelle Regressionstests (geplant)
+
+- Baseline-Screenshots beim ersten Lauf speichern
 - Bei jedem Push: Screenshots vergleichen (Differenz < 5%)
 - Verhindert unbemerkte UI-Änderungen
 
@@ -139,7 +148,7 @@ await expect(page).toHaveScreenshot('startseite.png', { maxDiffPercent: 5 });
 
 ---
 
-## Phase 4 – CI/CD Pipeline (GitHub Actions)
+## Phase 4 – CI/CD Pipeline (GitHub Actions) ✅
 
 ```
 Push → master
@@ -154,7 +163,7 @@ Push → master
 
 ---
 
-## Phase 5 – GitHub Pages Deployment
+## Phase 5 – GitHub Pages Deployment ✅
 
 - URL: `https://leroxog.github.io/Games4Me/`
 - Automatisch nach jedem Push auf `master` (via GitHub Actions)
@@ -163,9 +172,9 @@ Push → master
 
 ## Verifikation
 
-1. `npm run test:unit` → alle Vitest Unit Tests grün
-2. `npm run test:e2e` → alle Playwright Tests grün
-3. Startseite im Browser: 4 animierte Kacheln sichtbar
-4. Klick auf Snake → Snake-Spiel öffnet sich
+1. `npm run test:unit` → alle 17+ Vitest Unit Tests grün
+2. `npm run test:e2e` → alle 21+ Playwright Tests grün (inkl. Snake 12/12)
+3. Startseite im Browser: 4 Kacheln (Snake & Tetris als Bild, Runner & Rhythm als Canvas)
+4. Klick auf Snake → Spiel öffnet sich; Wischen steuert die Schlange
 5. "Zurück"-Button → zurück zur Startseite
-6. GitHub Actions: grüner Haken nach Push
+6. GitHub Actions: grüner Haken nach Push auf `master`
