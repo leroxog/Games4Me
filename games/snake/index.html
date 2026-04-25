@@ -7,26 +7,68 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../css/style.css" />
+  <style>
+    /* Keyboard hint — nur auf Desktop sichtbar */
+    .key-hint {
+      display: none;
+      gap: 6px;
+      margin-top: 1rem;
+      flex-direction: column;
+      align-items: center;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .key-hint { display: flex; }
+    }
+    .key-row { display: flex; gap: 6px; }
+    .key {
+      width: 42px; height: 42px;
+      background: #1a1a2e;
+      border: 2px solid #7b2fff;
+      border-bottom-width: 4px;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.5rem;
+      display: flex; align-items: center; justify-content: center;
+      user-select: none;
+    }
+    .key.active {
+      border-color: #00d4ff;
+      color: #00d4ff;
+      transform: translateY(2px);
+      border-bottom-width: 2px;
+    }
+  </style>
 </head>
 <body class="game-page">
   <a href="../../" class="back-btn">← Zurück</a>
   <h1 class="game-title">🐍 Snake</h1>
   <p class="score-display">Score: <span id="score">0</span> &nbsp;|&nbsp; Best: <span id="best">0</span></p>
   <canvas id="canvas"></canvas>
-  <p class="hint" id="hint">Tippe / Drücke eine Taste zum Starten</p>
+  <p class="hint" id="hint">Wische / Drücke eine Taste zum Starten</p>
 
-  <div class="controls" id="dpad" aria-label="Richtungssteuerung">
-    <button class="ctrl-btn ctrl-up"    id="btn-up"    aria-label="Oben">▲</button>
-    <button class="ctrl-btn ctrl-left"  id="btn-left"  aria-label="Links">◀</button>
-    <button class="ctrl-btn ctrl-down"  id="btn-down"  aria-label="Unten">▼</button>
-    <button class="ctrl-btn ctrl-right" id="btn-right" aria-label="Rechts">▶</button>
+  <!-- Visuelle Tastatur-Anzeige (nur Desktop) -->
+  <div class="key-hint" aria-hidden="true">
+    <div class="key-row">
+      <div class="key" id="key-w">W</div>
+      <div class="key" id="key-up">▲</div>
+    </div>
+    <div class="key-row">
+      <div class="key" id="key-a">A</div>
+      <div class="key" id="key-s">S</div>
+      <div class="key" id="key-d">D</div>
+      <div class="key" style="visibility:hidden"></div>
+      <div class="key" id="key-left">◀</div>
+      <div class="key" id="key-down">▼</div>
+      <div class="key" id="key-right">▶</div>
+    </div>
   </div>
 
   <script type="module">
     import { createSnake, placeFood, step, isOpposite } from './logic.js';
 
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+    const canvas  = document.getElementById('canvas');
+    const ctx     = canvas.getContext('2d');
     const scoreEl = document.getElementById('score');
     const bestEl  = document.getElementById('best');
     const hintEl  = document.getElementById('hint');
@@ -77,12 +119,9 @@
     function tick() {
       dir = { ...nextDir };
       const result = step(snake, dir, food, cols, rows);
-
       if (result.gameOver) { gameOver(); return; }
-
       snake = result.snake;
       food  = result.food;
-
       if (result.ateFood) {
         score++;
         scoreEl.textContent = score;
@@ -103,8 +142,8 @@
       ctx.font = `${CELL * 0.6}px 'Press Start 2P'`;
       ctx.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2 + CELL);
       ctx.font = `${CELL * 0.5}px 'Press Start 2P'`;
-      ctx.fillText('Nochmal tippen', canvas.width / 2, canvas.height / 2 + CELL * 2.5);
-      hintEl.textContent = 'Tippe / Drücke zum Neustart';
+      ctx.fillText('Nochmal wischen', canvas.width / 2, canvas.height / 2 + CELL * 2.5);
+      hintEl.textContent = 'Wische / Drücke zum Neustart';
       started = false;
     }
 
@@ -117,25 +156,67 @@
       loop = setInterval(tick, 150);
     }
 
-    const keyMap = {
-      ArrowUp: {x:0,y:-1}, ArrowDown: {x:0,y:1}, ArrowLeft: {x:-1,y:0}, ArrowRight: {x:1,y:0},
-      w: {x:0,y:-1}, s: {x:0,y:1}, a: {x:-1,y:0}, d: {x:1,y:0},
-    };
-    document.addEventListener('keydown', e => {
-      if (!started) { start(); return; }
-      const d = keyMap[e.key];
-      if (d && !isOpposite(dir, d)) nextDir = d;
-    });
-
-    function setDir(d) {
-      if (!started) { start(); return; }
+    function applyDir(d) {
+      if (!started) { start(); }
       if (!isOpposite(dir, d)) nextDir = d;
     }
-    document.getElementById('btn-up').addEventListener('click',    () => setDir({x:0,y:-1}));
-    document.getElementById('btn-down').addEventListener('click',  () => setDir({x:0,y:1}));
-    document.getElementById('btn-left').addEventListener('click',  () => setDir({x:-1,y:0}));
-    document.getElementById('btn-right').addEventListener('click', () => setDir({x:1,y:0}));
-    canvas.addEventListener('click', () => { if (!started) start(); });
+
+    // ── Tastatur ────────────────────────────────────────────────────
+    const keyMap = {
+      ArrowUp:    { x: 0, y: -1 }, ArrowDown:  { x: 0, y:  1 },
+      ArrowLeft:  { x: -1, y: 0 }, ArrowRight: { x: 1, y:  0 },
+      w: { x: 0, y: -1 }, s: { x: 0, y:  1 },
+      a: { x: -1, y: 0 }, d: { x: 1, y:  0 },
+    };
+    const keyEls = {
+      ArrowUp: 'key-up', ArrowDown: 'key-down',
+      ArrowLeft: 'key-left', ArrowRight: 'key-right',
+      w: 'key-w', s: 'key-s', a: 'key-a', d: 'key-d',
+    };
+
+    document.addEventListener('keydown', e => {
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
+      const d = keyMap[e.key];
+      if (!d) return;
+      applyDir(d);
+      document.getElementById(keyEls[e.key])?.classList.add('active');
+    });
+    document.addEventListener('keyup', e => {
+      document.getElementById(keyEls[e.key])?.classList.remove('active');
+    });
+
+    // ── Touch / Swipe ───────────────────────────────────────────────
+    let touchStartX = null, touchStartY = null;
+
+    canvas.addEventListener('touchstart', e => {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      if (!started) start();
+    }, { passive: true });
+
+    canvas.addEventListener('touchmove', e => {
+      if (touchStartX === null) return;
+      const dx = e.touches[0].clientX - touchStartX;
+      const dy = e.touches[0].clientY - touchStartY;
+
+      // Mindest-Schwelle damit kleine Zitterer ignoriert werden
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        applyDir(dx > 0 ? { x: 1, y: 0 } : { x: -1, y: 0 });
+      } else {
+        applyDir(dy > 0 ? { x: 0, y: 1 } : { x: 0, y: -1 });
+      }
+
+      // Reset damit jede neue Wischbewegung zählt
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    canvas.addEventListener('touchend', () => {
+      touchStartX = null;
+      touchStartY = null;
+    }, { passive: true });
 
     init();
   </script>
