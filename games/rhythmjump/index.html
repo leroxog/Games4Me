@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rhythm Jump – Games4Me</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../css/style.css" />
+</head>
+<body class="game-page">
+  <a href="../../" class="back-btn">← Zurück</a>
+  <h1 class="game-title">🎵 Rhythm Jump</h1>
+  <p class="score-display">Score: <span id="score">0</span></p>
+  <canvas id="canvas"></canvas>
+  <p class="hint" id="hint">Tippe / Leertaste zum Starten & Springen</p>
+  <button class="jump-btn" id="jump-btn" aria-label="Springen">SPRINGEN</button>
+
+  <script>
+    const canvas  = document.getElementById('canvas');
+    const ctx     = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const hintEl  = document.getElementById('hint');
+    const jumpBtn = document.getElementById('jump-btn');
+
+    const H = 160, GROUND = 110;
+    let W;
+
+    function resize() {
+      W = Math.min(window.innerWidth - 32, 480);
+      canvas.width  = W;
+      canvas.height = H;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const BEAT = 60;  // frames between obstacles
+
+    let player, spikes, score, frame, running, started, animId, bgHue;
+
+    function init() {
+      player = { x: 60, y: GROUND, size: 28, vy: 0, onGround: true, rotation: 0 };
+      spikes = [];
+      score  = 0;
+      frame  = 0;
+      bgHue  = 260;
+      scoreEl.textContent = 0;
+    }
+
+    function jump() {
+      if (!started) { start(); return; }
+      if (player.onGround) { player.vy = -10; player.onGround = false; }
+    }
+
+    function spawnSpike() {
+      const tall = Math.random() < 0.3;
+      spikes.push({ x: W, w: 22, h: tall ? 44 : 28, y: GROUND + player.size - (tall ? 44 : 28) });
+    }
+
+    function update() {
+      frame++;
+      const speed = 4 + Math.floor(frame / 400);
+
+      // Beat pulse background
+      bgHue = 260 + Math.sin(frame * Math.PI / BEAT) * 20;
+
+      score++;
+      scoreEl.textContent = Math.floor(score / 6);
+
+      // Spawn on beat
+      if (frame % BEAT === 0) spawnSpike();
+
+      // Physics
+      player.vy += 0.55;
+      player.y  += player.vy;
+      if (!player.onGround) player.rotation += 0.12;
+      if (player.y >= GROUND) {
+        player.y = GROUND; player.vy = 0;
+        player.onGround = true; player.rotation = 0;
+      }
+
+      spikes.forEach(s => s.x -= speed);
+      spikes = spikes.filter(s => s.x + s.w > 0);
+
+      for (const s of spikes) {
+        if (player.x + player.size - 6 > s.x + 4 &&
+            player.x + 6 < s.x + s.w - 4 &&
+            player.y + player.size - 4 > s.y + 4) {
+          gameOver(); return;
+        }
+      }
+    }
+
+    function draw() {
+      // Beat-pulsing background
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, `hsl(${bgHue}, 60%, 6%)`);
+      bg.addColorStop(1, `hsl(${bgHue + 30}, 50%, 10%)`);
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      // Scrolling grid lines (rhythm feel)
+      ctx.strokeStyle = `hsla(${bgHue}, 70%, 50%, 0.12)`;
+      ctx.lineWidth = 1;
+      const gridOff = frame * 3 % 40;
+      for (let x = -gridOff; x < W; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      }
+
+      // Ground line
+      ctx.fillStyle = '#7b2fff';
+      ctx.fillRect(0, GROUND + player.size, W, 3);
+      ctx.fillStyle = '#2a2a4a';
+      ctx.fillRect(0, GROUND + player.size + 3, W, H);
+
+      // Player (rotating square)
+      ctx.save();
+      ctx.translate(player.x + player.size / 2, player.y + player.size / 2);
+      ctx.rotate(player.rotation);
+      ctx.fillStyle = '#00d4ff';
+      ctx.beginPath();
+      ctx.roundRect(-player.size/2, -player.size/2, player.size, player.size, 5);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillRect(-player.size/2 + 4, -player.size/2 + 4, player.size/3, player.size/3);
+      ctx.restore();
+
+      // Spikes
+      spikes.forEach(s => {
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y + s.h);
+        ctx.lineTo(s.x + s.w / 2, s.y);
+        ctx.lineTo(s.x + s.w, s.y + s.h);
+        ctx.closePath();
+        ctx.fill();
+      });
+
+      // Score
+      ctx.fillStyle = 'rgba(0,212,255,0.8)';
+      ctx.font = "8px 'Press Start 2P'";
+      ctx.textAlign = 'left';
+      ctx.fillText(`${Math.floor(score / 6)}`, 8, 18);
+    }
+
+    function gameLoop() {
+      if (!running) return;
+      update();
+      draw();
+      animId = requestAnimationFrame(gameLoop);
+    }
+
+    function start() {
+      cancelAnimationFrame(animId);
+      init();
+      running = true; started = true;
+      hintEl.textContent = '';
+      animId = requestAnimationFrame(gameLoop);
+    }
+
+    function gameOver() {
+      running = false;
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#fff';
+      ctx.font = "13px 'Press Start 2P'";
+      ctx.textAlign = 'center';
+      ctx.fillText('GAME OVER', W / 2, H / 2 - 16);
+      ctx.font = "8px 'Press Start 2P'";
+      ctx.fillText(`Score: ${Math.floor(score / 6)}`, W / 2, H / 2 + 8);
+      ctx.fillText('Nochmal tippen', W / 2, H / 2 + 28);
+      hintEl.textContent = 'Tippe zum Neustart';
+      started = false;
+    }
+
+    document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); jump(); } });
+    canvas.addEventListener('click', jump);
+    jumpBtn.addEventListener('click', jump);
+
+    init(); draw();
+  </script>
+</body>
+</html>

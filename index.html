@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Games4Me</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .card { padding: 0; overflow: hidden; position: relative; }
+    .card canvas { width: 100%; height: 160px; display: block; border: none; border-radius: 0; }
+    .card-label {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(0.5rem, 2.5vw, 0.7rem);
+      color: #fff;
+      padding: 0.75rem 1rem;
+      background: rgba(10,10,20,0.85);
+      text-align: center;
+      letter-spacing: 0.05em;
+    }
+    .card:hover .card-label { color: #00d4ff; }
+    .card:active .card-label { color: #7b2fff; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 class="logo">🎮 Games4Me</h1>
+    <p class="subtitle">Wähle dein Spiel</p>
+  </header>
+
+  <main class="grid">
+    <a href="games/snake/" class="card" data-testid="card-snake">
+      <canvas id="prev-snake"></canvas>
+      <div class="card-label">🐍 Snake</div>
+    </a>
+
+    <a href="games/tetris/" class="card" data-testid="card-tetris">
+      <canvas id="prev-tetris"></canvas>
+      <div class="card-label">🟦 Tetris</div>
+    </a>
+
+    <a href="games/runner/" class="card" data-testid="card-runner">
+      <canvas id="prev-runner"></canvas>
+      <div class="card-label">🏃 Endless Runner</div>
+    </a>
+
+    <a href="games/rhythmjump/" class="card" data-testid="card-rhythmjump">
+      <canvas id="prev-rhythm"></canvas>
+      <div class="card-label">🎵 Rhythm Jump</div>
+    </a>
+  </main>
+
+  <footer><p>© 2025 Games4Me</p></footer>
+
+  <script>
+  // ── Snake preview ────────────────────────────────────────────────
+  (function() {
+    const cv = document.getElementById('prev-snake');
+    const cx = cv.getContext('2d');
+    const CELL = 16;
+    let W, H, cols, rows;
+
+    function resize() {
+      W = cv.offsetWidth || 300; H = 160;
+      cv.width = W; cv.height = H;
+      cols = Math.floor(W / CELL); rows = Math.floor(H / CELL);
+    }
+    resize();
+
+    let snake = [{x:5,y:5},{x:4,y:5},{x:3,y:5},{x:2,y:5}];
+    let dir = {x:1,y:0};
+    let food = {x:10,y:5};
+    let t = 0;
+
+    function draw() {
+      cx.fillStyle = '#0d0d0d';
+      cx.fillRect(0,0,W,H);
+
+      cx.fillStyle = '#00d4ff';
+      cx.beginPath();
+      cx.arc(food.x*CELL+CELL/2, food.y*CELL+CELL/2, CELL/2-2, 0, Math.PI*2);
+      cx.fill();
+
+      snake.forEach((s,i) => {
+        cx.fillStyle = i===0 ? '#7b2fff' : '#a855f7';
+        cx.beginPath();
+        if (cx.roundRect) cx.roundRect(s.x*CELL+1,s.y*CELL+1,CELL-2,CELL-2,3);
+        else cx.rect(s.x*CELL+1,s.y*CELL+1,CELL-2,CELL-2);
+        cx.fill();
+      });
+    }
+
+    function step() {
+      t++;
+      if (t % 8 !== 0) return;
+      // Auto-steer toward food (simple demo AI)
+      const head = snake[0];
+      if (head.x === food.x && head.y === food.y) {
+        food = {x: Math.floor(Math.random()*cols), y: Math.floor(Math.random()*rows)};
+        snake.push({...snake[snake.length-1]});
+      }
+      if (Math.abs(food.x - head.x) >= Math.abs(food.y - head.y)) {
+        dir = food.x > head.x ? {x:1,y:0} : {x:-1,y:0};
+      } else {
+        dir = food.y > head.y ? {x:0,y:1} : {x:0,y:-1};
+      }
+      const next = {x: (head.x + dir.x + cols) % cols, y: (head.y + dir.y + rows) % rows};
+      snake.unshift(next);
+      if (snake.length > 8) snake.pop();
+    }
+
+    setInterval(() => { step(); draw(); }, 1000/30);
+    draw();
+  })();
+
+  // ── Tetris preview ───────────────────────────────────────────────
+  (function() {
+    const cv = document.getElementById('prev-tetris');
+    const cx = cv.getContext('2d');
+    const CELL = 14, COLS = 10, ROWS = 11;
+    let W;
+
+    function resize() {
+      W = cv.offsetWidth || 300;
+      cv.width = W; cv.height = 160;
+    }
+    resize();
+
+    const COLORS = ['','#7b2fff','#00d4ff','#f59e0b','#10b981','#ef4444','#3b82f6','#ec4899'];
+    const board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+    // Pre-fill some rows for visual appeal
+    [9,10].forEach(r => board[r].forEach((_,c) => board[r][c] = (c+r)%7+1));
+    [7,8].forEach(r => { for(let c=0;c<8;c++) board[r][c]=(c*2)%7+1; });
+
+    let piece = [[0,4,4],[4,4,0]];
+    let px = 3, py = 0, t = 0;
+    const PIECES = [[[1,1,1,1]],[[2,2],[2,2]],[[0,3,0],[3,3,3]],[[4,4,0],[0,4,4]],[[5,0],[5,5],[0,5]],[[0,6,6],[6,6,0]],[[7,0],[7,7],[7,0]]];
+
+    function draw() {
+      const offX = Math.floor((W - COLS*CELL)/2);
+      cx.fillStyle = '#0d0d0d'; cx.fillRect(0,0,W,160);
+      cx.strokeStyle = '#1a1a2e'; cx.lineWidth = 0.5;
+      for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) {
+        if(board[r][c]) { cx.fillStyle=COLORS[board[r][c]]; cx.fillRect(offX+c*CELL+1,r*CELL+1,CELL-2,CELL-2); }
+      }
+      piece.forEach((row,r) => row.forEach((v,c) => {
+        if(v) { cx.fillStyle=COLORS[v]; cx.fillRect(offX+(px+c)*CELL+1,(py+r)*CELL+1,CELL-2,CELL-2); }
+      }));
+    }
+
+    setInterval(() => {
+      t++;
+      if(t%20===0) {
+        py++;
+        if(py+piece.length>=ROWS){py=0;piece=PIECES[Math.floor(Math.random()*PIECES.length)];px=Math.floor((COLS-piece[0].length)/2);}
+      }
+      if(t%120===0){px=(px+1)%7;}
+      draw();
+    }, 1000/30);
+    draw();
+  })();
+
+  // ── Runner preview ───────────────────────────────────────────────
+  (function() {
+    const cv = document.getElementById('prev-runner');
+    const cx = cv.getContext('2d');
+    let W;
+
+    function resize() { W = cv.offsetWidth || 300; cv.width = W; cv.height = 160; }
+    resize();
+
+    const GROUND = 115;
+    let px = 50, py = GROUND, vy = 0, onGround = true;
+    let obs = [{x: W+40, h:28}];
+    let t = 0;
+
+    setInterval(() => {
+      t++;
+      // Auto jump before obstacle
+      const nearest = obs.find(o => o.x > px);
+      if (nearest && nearest.x - px < 80 && onGround) { vy = -10; onGround = false; }
+
+      vy += 0.55; py += vy;
+      if (py >= GROUND) { py = GROUND; vy = 0; onGround = true; }
+
+      obs.forEach(o => o.x -= 3.5);
+      obs = obs.filter(o => o.x + 20 > 0);
+      if (t % 90 === 0) obs.push({x: W + 20, h: 24 + Math.random()*20});
+
+      // Draw
+      const bg = cx.createLinearGradient(0,0,0,160);
+      bg.addColorStop(0,'#0d0d1a'); bg.addColorStop(1,'#1a1a2e');
+      cx.fillStyle = bg; cx.fillRect(0,0,W,160);
+
+      cx.fillStyle = '#2a2a4a'; cx.fillRect(0,GROUND+32,W,160);
+      cx.fillStyle = '#7b2fff'; cx.fillRect(0,GROUND+32,W,2);
+
+      cx.fillStyle = '#7b2fff';
+      cx.beginPath(); cx.roundRect(px,py,26,30,5); cx.fill();
+      cx.fillStyle = '#00d4ff';
+      cx.beginPath(); cx.arc(px+20,py+8,4,0,Math.PI*2); cx.fill();
+
+      obs.forEach(o => {
+        cx.fillStyle='#ef4444';
+        cx.beginPath(); cx.roundRect(o.x, GROUND+32-o.h, 18, o.h, 3); cx.fill();
+      });
+    }, 1000/30);
+  })();
+
+  // ── Rhythm Jump preview ──────────────────────────────────────────
+  (function() {
+    const cv = document.getElementById('prev-rhythm');
+    const cx = cv.getContext('2d');
+    let W;
+
+    function resize() { W = cv.offsetWidth || 300; cv.width = W; cv.height = 160; }
+    resize();
+
+    const GROUND = 108, SIZE = 24;
+    let py = GROUND, vy = 0, onGround = true;
+    let spikes = [{x: W+20, h:28}];
+    let t = 0, hue = 260;
+
+    setInterval(() => {
+      t++;
+      hue = 260 + Math.sin(t * Math.PI / 55) * 20;
+
+      const nearest = spikes.find(s => s.x > 55);
+      if (nearest && nearest.x - 60 < 72 && onGround) { vy = -9.5; onGround = false; }
+
+      vy += 0.55; py += vy;
+      if (py >= GROUND) { py = GROUND; vy = 0; onGround = true; }
+
+      spikes.forEach(s => s.x -= 3.5);
+      spikes = spikes.filter(s => s.x + 22 > 0);
+      if (t % 60 === 0) spikes.push({x: W+10, h: 24 + Math.random()*20});
+
+      const bg = cx.createLinearGradient(0,0,0,160);
+      bg.addColorStop(0,`hsl(${hue},60%,6%)`); bg.addColorStop(1,`hsl(${hue+30},50%,10%)`);
+      cx.fillStyle=bg; cx.fillRect(0,0,W,160);
+
+      cx.strokeStyle=`hsla(${hue},70%,50%,0.12)`; cx.lineWidth=1;
+      const off = t*3%40;
+      for(let x=-off;x<W;x+=40){cx.beginPath();cx.moveTo(x,0);cx.lineTo(x,160);cx.stroke();}
+
+      cx.fillStyle='#2a2a4a'; cx.fillRect(0,GROUND+SIZE,W,160);
+      cx.fillStyle='#7b2fff'; cx.fillRect(0,GROUND+SIZE,W,2);
+
+      cx.save();
+      cx.translate(60+SIZE/2, py+SIZE/2);
+      cx.rotate(onGround ? 0 : t*0.1);
+      cx.fillStyle='#00d4ff';
+      cx.beginPath(); cx.roundRect(-SIZE/2,-SIZE/2,SIZE,SIZE,4); cx.fill();
+      cx.restore();
+
+      spikes.forEach(s => {
+        cx.fillStyle='#f59e0b';
+        cx.beginPath();
+        cx.moveTo(s.x, GROUND+SIZE); cx.lineTo(s.x+11, GROUND+SIZE-s.h); cx.lineTo(s.x+22, GROUND+SIZE);
+        cx.closePath(); cx.fill();
+      });
+    }, 1000/30);
+  })();
+  </script>
+</body>
+</html>
