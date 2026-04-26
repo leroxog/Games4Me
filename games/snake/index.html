@@ -18,6 +18,58 @@
   <script type="module">
     import { createSnake, placeFood, step, isOpposite } from './logic.js';
 
+    // ── Audio (Web Audio API, keine Dateien nötig) ───────────────────
+    let _ac = null;
+    function ac() {
+      if (!_ac) _ac = new (window.AudioContext || window.webkitAudioContext)();
+      return _ac;
+    }
+    function tone(freq, type, dur, vol = 0.22, delay = 0) {
+      try {
+        const ctx = ac(), t = ctx.currentTime + delay;
+        const osc = ctx.createOscillator(), g = ctx.createGain();
+        osc.connect(g); g.connect(ctx.destination);
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(vol, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        osc.start(t); osc.stop(t + dur + 0.02);
+      } catch (_) {}
+    }
+    function noise(dur, vol = 0.35, delay = 0, cutoff = 1800) {
+      try {
+        const ctx = ac(), t = ctx.currentTime + delay;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const src = ctx.createBufferSource();
+        const filt = ctx.createBiquadFilter();
+        const g = ctx.createGain();
+        src.buffer = buf; filt.type = 'lowpass';
+        filt.frequency.setValueAtTime(cutoff, t);
+        g.gain.setValueAtTime(vol, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        src.connect(filt); filt.connect(g); g.connect(ctx.destination);
+        src.start(t); src.stop(t + dur + 0.02);
+      } catch (_) {}
+    }
+
+    function sndEat() {
+      tone(523, 'square', 0.07, 0.2);
+      tone(784, 'square', 0.09, 0.2, 0.07);
+    }
+    function sndStart() {
+      tone(330, 'square', 0.06, 0.15);
+      tone(440, 'square', 0.07, 0.15, 0.07);
+      tone(523, 'square', 0.09, 0.15, 0.14);
+    }
+    function sndDie() {
+      tone(300, 'sawtooth', 0.18, 0.28);
+      tone(200, 'sawtooth', 0.22, 0.28, 0.16);
+      tone(130, 'sawtooth', 0.38, 0.28, 0.34);
+      noise(0.12, 0.2, 0.34, 300);
+    }
+
     const canvas  = document.getElementById('canvas');
     const ctx     = canvas.getContext('2d');
     const scoreEl = document.getElementById('score');
@@ -70,13 +122,14 @@
     function tick() {
       dir = { ...nextDir };
       const result = step(snake, dir, food, cols, rows);
-      if (result.gameOver) { gameOver(); return; }
+      if (result.gameOver) { sndDie(); gameOver(); return; }
       snake = result.snake;
       food  = result.food;
       if (result.ateFood) {
         score++;
         scoreEl.textContent = score;
         if (score > best) { best = score; bestEl.textContent = best; }
+        sndEat();
       }
       draw();
     }
@@ -104,6 +157,7 @@
       running = true;
       started = true;
       hintEl.textContent = '';
+      sndStart();
       loop = setInterval(tick, 150);
     }
 
