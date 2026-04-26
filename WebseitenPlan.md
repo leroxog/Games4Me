@@ -81,14 +81,36 @@ Jedes Spiel:
 - **Mobile:** Wischen auf dem Canvas → Schlange folgt Wischrichtung (touchstart/touchmove)
 - **Desktop:** WASD und Pfeiltasten — keine Buttons, keine visuelle Tastatur
 - Score-Anzeige, Game Over Screen mit Neustart
+- **Sounds** (Web Audio API, keine externen Dateien):
+  - Start → aufsteigender 3-Ton-Sweep
+  - Essen → helles Doppel-Blip
+  - Game Over → absteigendes Sawtooth-Trio + Rauschen
 
 ### Tetris ✅
 - Canvas max 300px, skaliert auf kleinen Screens
-- **Desktop:** Pfeiltasten (links/rechts/drehen/fallen) — keine Buttons
+- **Smooth Falling:** Steine gleiten flüssig per `requestAnimationFrame` + Delta-Zeit
+- **Desktop:** Pfeiltasten — keine Buttons
+  - ←/→ Bewegen, ↑ / Space Drehen, ↓ Soft Drop, Hard Drop (Space nach Rotation)
 - **Mobile:** Wischen auf dem Canvas:
   - Wischen links/rechts → Stück bewegen
-  - Wischen nach unten → Hard Drop
+  - Wischen nach unten → Hard Drop (sofort fallen lassen)
   - Wischen nach oben oder kurz antippen → Drehen
+- **Dynamit-Bombe:**
+  - Alle 300 Punkte wird eine Bombe vergeben
+  - Bombe erscheint im Seitenpanel (rechts neben dem Spielfeld) als gezeichneter Dynamitstab mit Zündschnur
+  - Per Finger oder Maus auf das Spielfeld ziehen — gelber Vorschaukreis zeigt Wirkungsbereich
+  - Beim Loslassen: alle Blöcke im Radius 2,5 Zellen werden gelöscht
+  - Explosionsanimation mit Feuerball und Funken
+- **Sounds** (Web Audio API, keine externen Dateien):
+  - Bewegen → kurzes Klicken
+  - Drehen → heller Tick
+  - Stein landet → Rausch-Thud
+  - Hard Drop → Aufprall-Impuls
+  - 1–3 Linien löschen → aufsteigender Akkord
+  - 4 Linien (Tetris!) → Fanfare
+  - Level Up → Jubel-Arpeggio
+  - Bombe → tiefer Boom + Knistern
+  - Game Over → absteigendes Quintett
 
 ### Endless Runner ✅
 - Figur läuft automatisch
@@ -132,7 +154,7 @@ Spiellogik als pure Funktionen in `logic.js` isoliert testen:
 |-------|-------|-----------------|
 | `navigation.spec.js` | 5 | Startseite lädt, alle 4 Kacheln sichtbar, Klick öffnet jedes Spiel |
 | `snake.spec.js` | 10 | Laden ohne JS-Fehler, Zurück-Button, Pfeiltasten, WASD, alle Tasten, kein D-Pad, Touch-Start, Wischen rechts, Wischen unten |
-| `tetris.spec.js` | 7 | Laden, Zurück-Button, Tastendruck, keine Buttons, Touch-Start, Wischen links, Wischen unten |
+| `tetris.spec.js` | 9 | Laden, Zurück-Button, Tastendruck, keine Buttons, Bomb-Slot leer, Touch-Start, Wischen links, Wischen unten, Bombe bei Score 300 |
 | `runner.spec.js` | 5 | Laden, Zurück-Button, Leertaste, kein Jump-Button, Touch-Start |
 | `rhythmjump.spec.js` | 5 | Laden, Zurück-Button, Leertaste, kein Jump-Button, Touch-Start |
 
@@ -176,8 +198,9 @@ Push → master
 ## Verifikation
 
 1. `npm run test:unit` → alle 58 Vitest Unit Tests grün
-2. `npm run test:e2e` → alle 64 Playwright Tests grün (Desktop + Mobile)
+2. `npm run test:e2e` → alle 70 Playwright Tests grün (Desktop + Mobile)
 3. Startseite im Browser: 4 Kacheln (Snake & Tetris als Bild, Runner & Rhythm als Canvas)
-4. Klick auf Snake → Spiel öffnet sich; Wischen steuert die Schlange
-5. "Zurück"-Button → zurück zur Startseite
-6. GitHub Actions: grüner Haken nach Push auf `master`
+4. Klick auf Snake → Spiel öffnet sich; Wischen steuert die Schlange; Sounds hörbar
+5. Klick auf Tetris → Steine gleiten smooth; Bombe erscheint bei 300 Punkten; Sounds hörbar
+6. "Zurück"-Button → zurück zur Startseite
+7. GitHub Actions: grüner Haken nach Push auf `master`
