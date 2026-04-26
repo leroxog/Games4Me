@@ -79,23 +79,26 @@ Jedes Spiel:
 ### Snake ✅
 - Canvas max 400px, skaliert auf kleinen Screens
 - **Mobile:** Wischen auf dem Canvas → Schlange folgt Wischrichtung (touchstart/touchmove)
-- **Desktop:** WASD und Pfeiltasten; visuelle Tastatur wird eingeblendet (nicht klickbar)
-  - Tasten leuchten beim Drücken auf (CSS `.active`)
-  - Nur auf Desktop sichtbar: `@media (hover: hover) and (pointer: fine)`
+- **Desktop:** WASD und Pfeiltasten — keine Buttons, keine visuelle Tastatur
 - Score-Anzeige, Game Over Screen mit Neustart
 
 ### Tetris ✅
 - Canvas max 300px, skaliert auf kleinen Screens
-- **Desktop:** Pfeiltasten (links/rechts/drehen/fallen)
-- **Mobile:** Tastendruck / Tastatur-Steuerung
+- **Desktop:** Pfeiltasten (links/rechts/drehen/fallen) — keine Buttons
+- **Mobile:** Wischen auf dem Canvas:
+  - Wischen links/rechts → Stück bewegen
+  - Wischen nach unten → Hard Drop
+  - Wischen nach oben oder kurz antippen → Drehen
 
 ### Endless Runner ✅
 - Figur läuft automatisch
-- **Alle Geräte:** Leertaste / Tap = Springen
+- **Desktop:** Leertaste = Springen — kein Button
+- **Mobile:** Tippen auf Canvas = Springen
 - Zufällige Hindernisse, steigernde Geschwindigkeit
 
 ### Rhythm Jump ✅
-- Block springt auf Tap / Klick / Leertaste
+- **Desktop:** Leertaste = Springen — kein Button
+- **Mobile:** Tippen auf Canvas = Springen
 - Hindernisse im festen Rhythmus
 
 ---
@@ -127,11 +130,11 @@ Spiellogik als pure Funktionen in `logic.js` isoliert testen:
 
 | Datei | Tests | Was wird geprüft |
 |-------|-------|-----------------|
-| `navigation.spec.js` | Startseite lädt, alle 4 Kacheln sichtbar, Klick öffnet Spiel |
-| `snake.spec.js` | 12 | Laden ohne JS-Fehler, Zurück-Button, Pfeiltasten, WASD, alle Tasten, kein D-Pad, visuelle Tastatur-Elemente, Taste leuchtet auf, Touch-Start, Wischen rechts, Wischen unten |
-| `tetris.spec.js` | 3 | Laden, Zurück-Button, Tastendruck startet Spiel |
-| `runner.spec.js` | 3 | Laden, Zurück-Button, Leertaste startet Spiel |
-| `rhythmjump.spec.js` | 3 | Laden, Zurück-Button, Leertaste startet Spiel |
+| `navigation.spec.js` | 5 | Startseite lädt, alle 4 Kacheln sichtbar, Klick öffnet jedes Spiel |
+| `snake.spec.js` | 10 | Laden ohne JS-Fehler, Zurück-Button, Pfeiltasten, WASD, alle Tasten, kein D-Pad, Touch-Start, Wischen rechts, Wischen unten |
+| `tetris.spec.js` | 7 | Laden, Zurück-Button, Tastendruck, keine Buttons, Touch-Start, Wischen links, Wischen unten |
+| `runner.spec.js` | 5 | Laden, Zurück-Button, Leertaste, kein Jump-Button, Touch-Start |
+| `rhythmjump.spec.js` | 5 | Laden, Zurück-Button, Leertaste, kein Jump-Button, Touch-Start |
 
 **Browser:** Desktop Chromium + Mobile Pixel 5 Emulation  
 **Ausführung:** `npm run test:e2e` → Playwright
@@ -172,8 +175,8 @@ Push → master
 
 ## Verifikation
 
-1. `npm run test:unit` → alle 17+ Vitest Unit Tests grün
-2. `npm run test:e2e` → alle 21+ Playwright Tests grün (inkl. Snake 12/12)
+1. `npm run test:unit` → alle 58 Vitest Unit Tests grün
+2. `npm run test:e2e` → alle 64 Playwright Tests grün (Desktop + Mobile)
 3. Startseite im Browser: 4 Kacheln (Snake & Tetris als Bild, Runner & Rhythm als Canvas)
 4. Klick auf Snake → Spiel öffnet sich; Wischen steuert die Schlange
 5. "Zurück"-Button → zurück zur Startseite
