@@ -52,25 +52,6 @@ test('Snake: Kein D-Pad mehr vorhanden', async ({ page }) => {
   await expect(page.locator('#btn-right')).toHaveCount(0);
 });
 
-test('Snake: Visuelle Tastatur-Elemente vorhanden', async ({ page }) => {
-  await page.goto('/games/snake/');
-  await expect(page.locator('#key-w')).toHaveCount(1);
-  await expect(page.locator('#key-a')).toHaveCount(1);
-  await expect(page.locator('#key-s')).toHaveCount(1);
-  await expect(page.locator('#key-d')).toHaveCount(1);
-  await expect(page.locator('#key-up')).toHaveCount(1);
-  await expect(page.locator('#key-left')).toHaveCount(1);
-  await expect(page.locator('#key-down')).toHaveCount(1);
-  await expect(page.locator('#key-right')).toHaveCount(1);
-});
-
-test('Snake: Taste leuchtet beim Drücken auf', async ({ page }) => {
-  await page.goto('/games/snake/');
-  await page.keyboard.down('ArrowRight');
-  await expect(page.locator('#key-right')).toHaveClass(/active/);
-  await page.keyboard.up('ArrowRight');
-  await expect(page.locator('#key-right')).not.toHaveClass(/active/);
-});
 
 // ── Mobile / Touch (Pixel 5 Emulation) ──────────────────────────────
 test('Snake: Spiel startet per Touch auf Canvas', async ({ browser }) => {

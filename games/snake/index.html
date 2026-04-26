@@ -7,38 +7,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../css/style.css" />
-  <style>
-    /* Keyboard hint — nur auf Desktop sichtbar */
-    .key-hint {
-      display: none;
-      gap: 6px;
-      margin-top: 1rem;
-      flex-direction: column;
-      align-items: center;
-    }
-    @media (hover: hover) and (pointer: fine) {
-      .key-hint { display: flex; }
-    }
-    .key-row { display: flex; gap: 6px; }
-    .key {
-      width: 42px; height: 42px;
-      background: #1a1a2e;
-      border: 2px solid #7b2fff;
-      border-bottom-width: 4px;
-      border-radius: 8px;
-      color: #e0e0e0;
-      font-family: 'Press Start 2P', monospace;
-      font-size: 0.5rem;
-      display: flex; align-items: center; justify-content: center;
-      user-select: none;
-    }
-    .key.active {
-      border-color: #00d4ff;
-      color: #00d4ff;
-      transform: translateY(2px);
-      border-bottom-width: 2px;
-    }
-  </style>
 </head>
 <body class="game-page">
   <a href="../../" class="back-btn">← Zurück</a>
@@ -46,23 +14,6 @@
   <p class="score-display">Score: <span id="score">0</span> &nbsp;|&nbsp; Best: <span id="best">0</span></p>
   <canvas id="canvas"></canvas>
   <p class="hint" id="hint">Wische / Drücke eine Taste zum Starten</p>
-
-  <!-- Visuelle Tastatur-Anzeige (nur Desktop) -->
-  <div class="key-hint" aria-hidden="true">
-    <div class="key-row">
-      <div class="key" id="key-w">W</div>
-      <div class="key" id="key-up">▲</div>
-    </div>
-    <div class="key-row">
-      <div class="key" id="key-a">A</div>
-      <div class="key" id="key-s">S</div>
-      <div class="key" id="key-d">D</div>
-      <div class="key" style="visibility:hidden"></div>
-      <div class="key" id="key-left">◀</div>
-      <div class="key" id="key-down">▼</div>
-      <div class="key" id="key-right">▶</div>
-    </div>
-  </div>
 
   <script type="module">
     import { createSnake, placeFood, step, isOpposite } from './logic.js';
@@ -168,21 +119,11 @@
       w: { x: 0, y: -1 }, s: { x: 0, y:  1 },
       a: { x: -1, y: 0 }, d: { x: 1, y:  0 },
     };
-    const keyEls = {
-      ArrowUp: 'key-up', ArrowDown: 'key-down',
-      ArrowLeft: 'key-left', ArrowRight: 'key-right',
-      w: 'key-w', s: 'key-s', a: 'key-a', d: 'key-d',
-    };
-
     document.addEventListener('keydown', e => {
       if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
       const d = keyMap[e.key];
       if (!d) return;
       applyDir(d);
-      document.getElementById(keyEls[e.key])?.classList.add('active');
-    });
-    document.addEventListener('keyup', e => {
-      document.getElementById(keyEls[e.key])?.classList.remove('active');
     });
 
     // ── Touch / Swipe ───────────────────────────────────────────────
