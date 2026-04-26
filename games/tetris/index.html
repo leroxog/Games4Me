@@ -7,34 +7,99 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../css/style.css" />
+  <style>
+    .game-wrapper {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding-top: 4px;
+    }
+    .panel-label {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.35rem;
+      color: #7b2fff;
+      letter-spacing: 1px;
+      text-align: center;
+    }
+    .bomb-slot {
+      background: #1a1a2e;
+      border: 2px solid #7b2fff;
+      border-radius: 10px;
+      padding: 8px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: border-color 0.15s;
+    }
+    .bomb-slot:hover  { border-color: #f59e0b; }
+    .bomb-slot.empty  { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+    .bomb-count {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.55rem;
+      color: #f59e0b;
+    }
+    #drag-bomb {
+      display: none;
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      transform: rotate(-12deg);
+    }
+  </style>
 </head>
 <body class="game-page">
   <a href="../../" class="back-btn">← Zurück</a>
   <h1 class="game-title">🟦 Tetris</h1>
   <p class="score-display">Score: <span id="score">0</span> &nbsp;|&nbsp; Level: <span id="level">1</span></p>
-  <canvas id="canvas"></canvas>
+
+  <div class="game-wrapper">
+    <canvas id="canvas"></canvas>
+
+    <div class="side-panel">
+      <div class="panel-label">Bombe</div>
+      <div class="bomb-slot empty" id="bomb-slot">
+        <canvas id="bomb-canvas" width="44" height="64"></canvas>
+        <div class="bomb-count" id="bomb-count">×0</div>
+      </div>
+    </div>
+  </div>
+
   <p class="hint" id="hint">Tippe / Drücke eine Taste zum Starten</p>
 
+  <!-- Floating drag ghost -->
+  <div id="drag-bomb">
+    <canvas id="drag-canvas" width="44" height="64"></canvas>
+  </div>
+
   <script>
-    const canvas = document.getElementById('canvas');
-    const ctx    = canvas.getContext('2d');
-    const scoreEl = document.getElementById('score');
-    const levelEl = document.getElementById('level');
-    const hintEl  = document.getElementById('hint');
+    // ── Elements ────────────────────────────────────────────────────
+    const canvas      = document.getElementById('canvas');
+    const ctx         = canvas.getContext('2d');
+    const scoreEl     = document.getElementById('score');
+    const levelEl     = document.getElementById('level');
+    const hintEl      = document.getElementById('hint');
+    const bombSlotEl  = document.getElementById('bomb-slot');
+    const bombCanvasEl= document.getElementById('bomb-canvas');
+    const bombCountEl = document.getElementById('bomb-count');
+    const dragBombEl  = document.getElementById('drag-bomb');
+    const dragCanvasEl= document.getElementById('drag-canvas');
 
+    // ── Constants ───────────────────────────────────────────────────
     const COLS = 10, ROWS = 20;
-    let CELL;
-
-    function resize() {
-      CELL = Math.min(Math.floor((window.innerWidth - 32) / COLS), 28);
-      canvas.width  = COLS * CELL;
-      canvas.height = ROWS * CELL;
-    }
-    resize();
-    window.addEventListener('resize', () => { resize(); drawBoard(); });
-
-    const COLORS = ['', '#7b2fff','#00d4ff','#f59e0b','#10b981','#ef4444','#3b82f6','#ec4899'];
-    const PIECES = [
+    const COLORS = ['','#7b2fff','#00d4ff','#f59e0b','#10b981','#ef4444','#3b82f6','#ec4899'];
+    const PIECE_DEFS = [
       [[1,1,1,1]],
       [[2,2],[2,2]],
       [[0,3,0],[3,3,3]],
@@ -43,19 +108,40 @@
       [[6,0,0],[6,6,6]],
       [[0,0,7],[7,7,7]],
     ];
+    const BOMB_RADIUS  = 2.5;   // cells
+    const BOMB_SCORE   = 300;   // points per bomb reward
 
-    let board, piece, pieceX, pieceY, score, level, lines, running, started, loop;
-
-    function newBoard() {
-      return Array.from({length: ROWS}, () => Array(COLS).fill(0));
+    // ── Sizing ──────────────────────────────────────────────────────
+    let CELL;
+    function resize() {
+      const sidePanelW = 68;
+      const available  = Math.min(window.innerWidth - 32 - sidePanelW - 10, 280);
+      CELL = Math.max(Math.min(Math.floor(available / COLS), 28), 18);
+      canvas.width  = COLS * CELL;
+      canvas.height = ROWS * CELL;
     }
+    resize();
+    window.addEventListener('resize', () => { resize(); if (!running) drawBoard(); });
 
-    function newPiece() {
-      const shape = PIECES[Math.floor(Math.random() * PIECES.length)];
-      piece  = shape.map(r => [...r]);
-      pieceX = Math.floor((COLS - piece[0].length) / 2);
-      pieceY = 0;
-      if (collides(piece, pieceX, pieceY)) gameOver();
+    // ── Game state ───────────────────────────────────────────────────
+    let board, piece, pieceX, pieceY;
+    let score, level, lines;
+    let running = false, started = false;
+    let animId;
+    let lastTime  = 0;
+    let subY      = 0;   // smooth sub-cell offset [0, 1)
+    let softDropping = false;
+
+    // ── Bomb state ───────────────────────────────────────────────────
+    let bombs = 0;
+    let lastBombThreshold = 0;
+    let draggingBomb  = false;
+    let ghostBombCell = null;   // { c, r } | null
+    let explosionAnim = null;   // { c, r, frame, maxFrames } | null
+
+    // ── Board helpers ────────────────────────────────────────────────
+    function newBoard() {
+      return Array.from({ length: ROWS }, () => Array(COLS).fill(0));
     }
 
     function collides(p, px, py) {
@@ -66,12 +152,19 @@
       return false;
     }
 
-    function rotate(p) {
+    function rotatePiece(p) {
       return p[0].map((_, i) => p.map(r => r[i]).reverse());
     }
 
+    function tryRotate() {
+      const r = rotatePiece(piece);
+      if (!collides(r, pieceX, pieceY)) piece = r;
+    }
+
     function merge() {
-      piece.forEach((r, ri) => r.forEach((v, ci) => { if (v) board[pieceY+ri][pieceX+ci] = v; }));
+      piece.forEach((r, ri) => r.forEach((v, ci) => {
+        if (v) board[pieceY + ri][pieceX + ci] = v;
+      }));
     }
 
     function clearLines() {
@@ -80,42 +173,61 @@
         if (board[r].every(v => v)) {
           board.splice(r, 1);
           board.unshift(Array(COLS).fill(0));
-          cleared++;
-          r++;
+          cleared++; r++;
         }
       }
       if (cleared) {
-        const pts = [0,100,300,500,800];
+        const oldScore = score;
+        const pts = [0, 100, 300, 500, 800];
         score += (pts[cleared] || 800) * level;
         lines += cleared;
         level = Math.floor(lines / 10) + 1;
         scoreEl.textContent = score;
         levelEl.textContent = level;
+        checkBombReward(oldScore);
       }
     }
 
-    function drop() {
-      pieceY++;
-      if (collides(piece, pieceX, pieceY)) {
-        pieceY--;
-        merge();
-        clearLines();
-        newPiece();
-      }
-      drawBoard();
+    function newPiece() {
+      const shape = PIECE_DEFS[Math.floor(Math.random() * PIECE_DEFS.length)];
+      piece  = shape.map(r => [...r]);
+      pieceX = Math.floor((COLS - piece[0].length) / 2);
+      pieceY = 0;
+      subY   = 0;
+      if (collides(piece, pieceX, pieceY)) gameOver();
+    }
+
+    function lockPiece() {
+      merge();
+      clearLines();
+      if (!running) return;
+      newPiece();
+      subY = 0;
     }
 
     function hardDrop() {
       while (!collides(piece, pieceX, pieceY + 1)) pieceY++;
-      drop();
+      lockPiece();
     }
 
-    function tryRotate() {
-      const r = rotate(piece);
-      if (!collides(r, pieceX, pieceY)) { piece = r; drawBoard(); }
+    // ── Fall speed ───────────────────────────────────────────────────
+    function getFallSpeed() {
+      // cells per second; level 1 → 1.5 c/s, each level +0.5
+      return 1.5 + (level - 1) * 0.5;
+    }
+
+    // ── Drawing ──────────────────────────────────────────────────────
+    function drawCell(c, r, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.roundRect(c * CELL + 1, r * CELL + 1, CELL - 2, CELL - 2, 3);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillRect(c * CELL + 2, r * CELL + 2, CELL / 3, CELL / 3);
     }
 
     function drawBoard() {
+      // Background
       ctx.fillStyle = '#0d0d0d';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -123,95 +235,298 @@
       ctx.strokeStyle = '#1a1a2e';
       ctx.lineWidth = 0.5;
       for (let r = 0; r < ROWS; r++) {
-        ctx.beginPath(); ctx.moveTo(0, r*CELL); ctx.lineTo(canvas.width, r*CELL); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, r * CELL); ctx.lineTo(canvas.width, r * CELL); ctx.stroke();
       }
       for (let c = 0; c < COLS; c++) {
-        ctx.beginPath(); ctx.moveTo(c*CELL, 0); ctx.lineTo(c*CELL, canvas.height); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(c * CELL, 0); ctx.lineTo(c * CELL, canvas.height); ctx.stroke();
       }
 
       // Placed blocks
-      board.forEach((row, r) => row.forEach((v, c) => {
-        if (v) drawCell(c, r, COLORS[v]);
-      }));
+      board.forEach((row, r) => row.forEach((v, c) => { if (v) drawCell(c, r, COLORS[v]); }));
 
-      // Ghost piece
-      let ghostY = pieceY;
-      while (!collides(piece, pieceX, ghostY + 1)) ghostY++;
-      piece.forEach((row, r) => row.forEach((v, c) => {
-        if (v) {
-          ctx.fillStyle = 'rgba(255,255,255,0.1)';
-          ctx.fillRect((pieceX+c)*CELL+1, (ghostY+r)*CELL+1, CELL-2, CELL-2);
-        }
-      }));
+      if (piece) {
+        // Ghost (landing preview)
+        let ghostY = pieceY;
+        while (!collides(piece, pieceX, ghostY + 1)) ghostY++;
+        piece.forEach((row, r) => row.forEach((v, c) => {
+          if (v) {
+            ctx.fillStyle = 'rgba(255,255,255,0.07)';
+            ctx.fillRect((pieceX + c) * CELL + 1, (ghostY + r) * CELL + 1, CELL - 2, CELL - 2);
+          }
+        }));
 
-      // Active piece
-      piece.forEach((row, r) => row.forEach((v, c) => {
-        if (v) drawCell(pieceX+c, pieceY+r, COLORS[v]);
-      }));
+        // Active piece — smooth visual Y
+        const visY = pieceY + subY;
+        piece.forEach((row, r) => row.forEach((v, c) => {
+          if (v) drawCell(pieceX + c, visY + r, COLORS[v]);
+        }));
+      }
+
+      drawGhostBomb();
+      drawExplosion();
     }
 
-    function drawCell(c, r, color) {
-      ctx.fillStyle = color;
+    // ── Bomb ghost overlay ───────────────────────────────────────────
+    function drawGhostBomb() {
+      if (!ghostBombCell || !running) return;
+      const { c, r } = ghostBombCell;
+      const cx = (c + 0.5) * CELL, cy = (r + 0.5) * CELL;
+
+      for (let row = 0; row < ROWS; row++)
+        for (let col = 0; col < COLS; col++)
+          if (Math.sqrt((col - c) ** 2 + (row - r) ** 2) <= BOMB_RADIUS) {
+            ctx.fillStyle = 'rgba(255,180,0,0.22)';
+            ctx.fillRect(col * CELL, row * CELL, CELL, CELL);
+          }
+
+      ctx.strokeStyle = 'rgba(255,210,0,0.75)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
       ctx.beginPath();
-      ctx.roundRect(c*CELL+1, r*CELL+1, CELL-2, CELL-2, 3);
+      ctx.arc(cx, cy, BOMB_RADIUS * CELL, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // ── Explosion animation ──────────────────────────────────────────
+    function drawExplosion() {
+      if (!explosionAnim) return;
+      const e = explosionAnim;
+      const t = e.frame / e.maxFrames;           // 0 → 1
+      const alpha  = 1 - t;
+      const radius = (BOMB_RADIUS + t * 1.8) * CELL;
+      const cx = (e.c + 0.5) * CELL, cy = (e.r + 0.5) * CELL;
+
+      // Radial gradient fireball
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+      grad.addColorStop(0,   `rgba(255,240,120,${alpha})`);
+      grad.addColorStop(0.25,`rgba(255,160,0,${alpha * 0.95})`);
+      grad.addColorStop(0.6, `rgba(200,40,0,${alpha * 0.55})`);
+      grad.addColorStop(1,   `rgba(80,0,0,0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.2)';
-      ctx.fillRect(c*CELL+2, r*CELL+2, CELL/3, CELL/3);
+
+      // Flying embers
+      for (let i = 0; i < 10; i++) {
+        const angle = (i / 10) * Math.PI * 2 + t * 5;
+        const dist  = t * BOMB_RADIUS * CELL * 2.2;
+        const g = i % 2 === 0 ? 160 : 80;
+        ctx.fillStyle = `rgba(255,${g},0,${alpha * 0.8})`;
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(angle) * dist, cy + Math.sin(angle) * dist, CELL * 0.18, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      e.frame++;
+      if (e.frame >= e.maxFrames) explosionAnim = null;
+    }
+
+    // ── Dynamite drawing ─────────────────────────────────────────────
+    function drawDynamite(dc, active) {
+      const dctx = dc.getContext('2d');
+      const w = dc.width, h = dc.height;
+      dctx.clearRect(0, 0, w, h);
+      dctx.globalAlpha = active ? 1 : 0.25;
+
+      // Fuse spark
+      dctx.shadowColor = '#FFD700'; dctx.shadowBlur = 8;
+      dctx.fillStyle = '#FFD700';
+      dctx.beginPath(); dctx.arc(w / 2 + 5, 4, 3, 0, Math.PI * 2); dctx.fill();
+      dctx.shadowBlur = 0;
+
+      // Fuse rope
+      dctx.strokeStyle = '#a0762a'; dctx.lineWidth = 2;
+      dctx.setLineDash([3, 2]);
+      dctx.beginPath();
+      dctx.moveTo(w / 2, 10);
+      dctx.quadraticCurveTo(w / 2 + 8, 6, w / 2 + 5, 2);
+      dctx.stroke();
+      dctx.setLineDash([]);
+
+      // Body
+      const bx = w / 2 - 12, by = 11, bw = 24, bh = 44;
+      dctx.fillStyle = '#c0392b';
+      dctx.beginPath(); dctx.roundRect(bx, by, bw, bh, 4); dctx.fill();
+
+      // Highlight stripe
+      dctx.fillStyle = 'rgba(255,100,80,0.4)';
+      dctx.beginPath(); dctx.roundRect(bx + 3, by + 3, 7, bh - 6, 3); dctx.fill();
+
+      // Yellow bands
+      dctx.fillStyle = '#f59e0b';
+      dctx.fillRect(bx, by + 14, bw, 5);
+      dctx.fillRect(bx, by + 30, bw, 5);
+
+      // Labels
+      dctx.fillStyle = '#fff'; dctx.font = 'bold 7px monospace'; dctx.textAlign = 'center';
+      dctx.fillText('TNT', w / 2, by + 13);
+      dctx.fillText('TNT', w / 2, by + 29);
+      dctx.fillText('TNT', w / 2, by + 45);
+
+      // Bottom cap
+      dctx.fillStyle = '#922b21';
+      dctx.beginPath(); dctx.roundRect(bx, by + bh - 7, bw, 7, [0, 0, 4, 4]); dctx.fill();
+
+      dctx.globalAlpha = 1;
+    }
+
+    // ── Bomb system ──────────────────────────────────────────────────
+    function checkBombReward(oldScore) {
+      const threshold = Math.floor(score / BOMB_SCORE);
+      if (threshold > lastBombThreshold) {
+        lastBombThreshold = threshold;
+        bombs++;
+        updateBombSlot();
+      }
+    }
+
+    function updateBombSlot() {
+      bombCountEl.textContent = '×' + bombs;
+      bombSlotEl.classList.toggle('empty', bombs <= 0);
+      drawDynamite(bombCanvasEl, bombs > 0);
+    }
+
+    function placeBomb(c, r) {
+      if (bombs <= 0 || !running) return;
+      bombs--;
+      updateBombSlot();
+      for (let row = 0; row < ROWS; row++)
+        for (let col = 0; col < COLS; col++)
+          if (Math.sqrt((col - c) ** 2 + (row - r) ** 2) <= BOMB_RADIUS)
+            board[row][col] = 0;
+      explosionAnim = { c, r, frame: 0, maxFrames: 30 };
+    }
+
+    // ── Drag & drop ──────────────────────────────────────────────────
+    function startDrag(cx, cy) {
+      if (bombs <= 0) return;
+      draggingBomb = true;
+      dragBombEl.style.display = 'block';
+      drawDynamite(dragCanvasEl, true);
+      moveDrag(cx, cy);
+    }
+
+    function moveDrag(cx, cy) {
+      if (!draggingBomb) return;
+      dragBombEl.style.left = (cx - 22) + 'px';
+      dragBombEl.style.top  = (cy - 32) + 'px';
+      const rect = canvas.getBoundingClientRect();
+      if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) {
+        ghostBombCell = {
+          c: Math.max(0, Math.min(COLS - 1, Math.floor((cx - rect.left) / CELL))),
+          r: Math.max(0, Math.min(ROWS - 1, Math.floor((cy - rect.top)  / CELL))),
+        };
+      } else {
+        ghostBombCell = null;
+      }
+    }
+
+    function endDrag(cx, cy) {
+      if (!draggingBomb) return;
+      draggingBomb = false;
+      dragBombEl.style.display = 'none';
+      const rect = canvas.getBoundingClientRect();
+      if (running && cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) {
+        placeBomb(
+          Math.max(0, Math.min(COLS - 1, Math.floor((cx - rect.left) / CELL))),
+          Math.max(0, Math.min(ROWS - 1, Math.floor((cy - rect.top)  / CELL)))
+        );
+      }
+      ghostBombCell = null;
+    }
+
+    // Mouse
+    bombSlotEl.addEventListener('mousedown', e => { e.preventDefault(); startDrag(e.clientX, e.clientY); });
+    document.addEventListener('mousemove',   e => { moveDrag(e.clientX, e.clientY); });
+    document.addEventListener('mouseup',     e => { endDrag(e.clientX, e.clientY); });
+
+    // Touch
+    bombSlotEl.addEventListener('touchstart', e => {
+      e.preventDefault();
+      startDrag(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: false });
+
+    document.addEventListener('touchmove', e => {
+      if (draggingBomb) { e.preventDefault(); moveDrag(e.touches[0].clientX, e.touches[0].clientY); }
+    }, { passive: false });
+
+    document.addEventListener('touchend', e => {
+      if (draggingBomb) endDrag(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+    });
+
+    // ── Game control ─────────────────────────────────────────────────
+    function startGame() {
+      if (running) return;
+      board  = newBoard();
+      score  = 0; lines = 0; level = 1;
+      bombs  = 0; lastBombThreshold = 0;
+      scoreEl.textContent = 0; levelEl.textContent = 1;
+      updateBombSlot();
+      running = true; started = true;
+      hintEl.textContent = '';
+      newPiece();
     }
 
     function gameOver() {
       running = false;
-      clearInterval(loop);
-      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillStyle = 'rgba(0,0,0,0.72)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = '#fff';
       ctx.font = `bold ${CELL}px 'Press Start 2P'`;
       ctx.textAlign = 'center';
-      ctx.fillText('GAME', canvas.width/2, canvas.height/2 - CELL*1.5);
-      ctx.fillText('OVER', canvas.width/2, canvas.height/2 - CELL*0.2);
-      ctx.font = `${CELL*0.55}px 'Press Start 2P'`;
-      ctx.fillText(`Score: ${score}`, canvas.width/2, canvas.height/2 + CELL*1.2);
-      ctx.fillText('Nochmal tippen', canvas.width/2, canvas.height/2 + CELL*2.5);
+      ctx.fillText('GAME', canvas.width / 2, canvas.height / 2 - CELL * 1.5);
+      ctx.fillText('OVER', canvas.width / 2, canvas.height / 2 - CELL * 0.2);
+      ctx.font = `${CELL * 0.55}px 'Press Start 2P'`;
+      ctx.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2 + CELL * 1.2);
+      ctx.fillText('Nochmal tippen', canvas.width / 2, canvas.height / 2 + CELL * 2.5);
       hintEl.textContent = 'Tippe / Drücke zum Neustart';
       started = false;
     }
 
-    function startGame() {
-      if (running) return;
-      board   = newBoard();
-      score   = 0; lines = 0; level = 1;
-      scoreEl.textContent = 0; levelEl.textContent = 1;
-      running = true; started = true;
-      hintEl.textContent = '';
-      newPiece();
-      drawBoard();
-      clearInterval(loop);
-      loop = setInterval(() => { drop(); }, getSpeed());
+    // ── RAF game loop (smooth fall) ──────────────────────────────────
+    function gameLoop(ts) {
+      animId = requestAnimationFrame(gameLoop);
+      if (!running) { lastTime = ts; return; }
+
+      const dt    = Math.min((ts - lastTime) / 1000, 0.1);   // seconds, capped at 100 ms
+      lastTime    = ts;
+      const speed = softDropping ? getFallSpeed() * 8 : getFallSpeed();
+      subY += speed * dt;
+
+      // Advance piece by whole cells
+      while (subY >= 1) {
+        subY -= 1;
+        if (!collides(piece, pieceX, pieceY + 1)) {
+          pieceY++;
+        } else {
+          lockPiece();
+          subY = 0;
+          break;
+        }
+      }
+
+      if (running) drawBoard();   // skip if gameOver() was called inside lockPiece
     }
 
-    function getSpeed() { return Math.max(80, 500 - (level - 1) * 40); }
-
-    function resetTimer() {
-      clearInterval(loop);
-      loop = setInterval(() => { drop(); }, getSpeed());
-    }
-
-    // ── Tastatur ────────────────────────────────────────────────────────
+    // ── Keyboard ─────────────────────────────────────────────────────
     document.addEventListener('keydown', e => {
       if (!started) { startGame(); return; }
       if (!running) return;
-      if (e.key === 'ArrowLeft')  { if (!collides(piece, pieceX-1, pieceY)) { pieceX--; drawBoard(); } }
-      if (e.key === 'ArrowRight') { if (!collides(piece, pieceX+1, pieceY)) { pieceX++; drawBoard(); } }
-      if (e.key === 'ArrowDown')  { drop(); resetTimer(); }
-      if (e.key === 'ArrowUp' || e.key === ' ') {
-        e.preventDefault();
-        tryRotate();
+      switch (e.key) {
+        case 'ArrowLeft':  if (!collides(piece, pieceX - 1, pieceY)) pieceX--; break;
+        case 'ArrowRight': if (!collides(piece, pieceX + 1, pieceY)) pieceX++; break;
+        case 'ArrowDown':  softDropping = true; break;
+        case 'ArrowUp':
+        case ' ':          e.preventDefault(); tryRotate(); break;
       }
     });
+    document.addEventListener('keyup', e => { if (e.key === 'ArrowDown') softDropping = false; });
 
-    // ── Touch / Swipe ───────────────────────────────────────────────────
+    // ── Touch / Swipe on canvas ───────────────────────────────────────
     let touchStartX = null, touchStartY = null;
-    const SWIPE_THRESHOLD = 30;
+    const SWIPE_MIN = 30;
 
     canvas.addEventListener('touchstart', e => {
       e.preventDefault();
@@ -228,24 +543,24 @@
       if (!started) { startGame(); touchStartX = null; return; }
       if (!running)  { touchStartX = null; return; }
 
-      if (absDx < SWIPE_THRESHOLD && absDy < SWIPE_THRESHOLD) {
-        // Kurzes Antippen → Drehen
+      if (absDx < SWIPE_MIN && absDy < SWIPE_MIN) {
         tryRotate();
       } else if (absDx >= absDy) {
-        // Horizontal wischen → links / rechts
-        if (dx < 0) { if (!collides(piece, pieceX-1, pieceY)) { pieceX--; drawBoard(); } }
-        else         { if (!collides(piece, pieceX+1, pieceY)) { pieceX++; drawBoard(); } }
+        if (dx < 0) { if (!collides(piece, pieceX - 1, pieceY)) pieceX--; }
+        else         { if (!collides(piece, pieceX + 1, pieceY)) pieceX++; }
       } else {
-        // Vertikal wischen
-        if (dy > 0) { hardDrop(); resetTimer(); }  // nach unten → fallen lassen
-        else        { tryRotate(); }               // nach oben → drehen
+        if (dy > 0) hardDrop();
+        else        tryRotate();
       }
-
       touchStartX = null;
     }, { passive: false });
 
-    board = newBoard(); piece = PIECES[0]; pieceX = 4; pieceY = 0;
+    // ── Init ─────────────────────────────────────────────────────────
+    board = newBoard();
+    piece = null;
     drawBoard();
+    updateBombSlot();
+    animId = requestAnimationFrame(gameLoop);
   </script>
 </body>
 </html>

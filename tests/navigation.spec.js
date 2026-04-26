@@ -24,7 +24,7 @@ test('Klick auf Tetris öffnet Tetris-Seite', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('card-tetris').click();
   await expect(page).toHaveURL(/tetris/);
-  await expect(page.locator('canvas')).toBeVisible();
+  await expect(page.locator('#canvas')).toBeVisible();
 });
 
 test('Klick auf Runner öffnet Runner-Seite', async ({ page }) => {
