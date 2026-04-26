@@ -15,13 +15,6 @@
   <canvas id="canvas"></canvas>
   <p class="hint" id="hint">Tippe / Drücke eine Taste zum Starten</p>
 
-  <div class="controls-row">
-    <button class="ctrl-btn-wide" id="btn-left"  aria-label="Links">◀</button>
-    <button class="ctrl-btn-wide" id="btn-rotate" aria-label="Drehen">↻</button>
-    <button class="ctrl-btn-wide" id="btn-right" aria-label="Rechts">▶</button>
-    <button class="ctrl-btn-wide" id="btn-down"  aria-label="Fallen">▼▼</button>
-  </div>
-
   <script>
     const canvas = document.getElementById('canvas');
     const ctx    = canvas.getContext('2d');
@@ -117,6 +110,11 @@
       drop();
     }
 
+    function tryRotate() {
+      const r = rotate(piece);
+      if (!collides(r, pieceX, pieceY)) { piece = r; drawBoard(); }
+    }
+
     function drawBoard() {
       ctx.fillStyle = '#0d0d0d';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -188,17 +186,17 @@
       newPiece();
       drawBoard();
       clearInterval(loop);
-      loop = setInterval(() => { drop(); resetTimer(); }, getSpeed());
+      loop = setInterval(() => { drop(); }, getSpeed());
     }
 
     function getSpeed() { return Math.max(80, 500 - (level - 1) * 40); }
 
-    let dropTimer;
     function resetTimer() {
       clearInterval(loop);
       loop = setInterval(() => { drop(); }, getSpeed());
     }
 
+    // ── Tastatur ────────────────────────────────────────────────────────
     document.addEventListener('keydown', e => {
       if (!started) { startGame(); return; }
       if (!running) return;
@@ -207,17 +205,44 @@
       if (e.key === 'ArrowDown')  { drop(); resetTimer(); }
       if (e.key === 'ArrowUp' || e.key === ' ') {
         e.preventDefault();
-        const r = rotate(piece);
-        if (!collides(r, pieceX, pieceY)) { piece = r; drawBoard(); }
+        tryRotate();
       }
     });
 
-    canvas.addEventListener('click', () => { if (!started) startGame(); });
+    // ── Touch / Swipe ───────────────────────────────────────────────────
+    let touchStartX = null, touchStartY = null;
+    const SWIPE_THRESHOLD = 30;
 
-    document.getElementById('btn-left').addEventListener('click',   () => { if (!started){startGame();return;} if(!collides(piece,pieceX-1,pieceY)){pieceX--;drawBoard();} });
-    document.getElementById('btn-right').addEventListener('click',  () => { if (!started){startGame();return;} if(!collides(piece,pieceX+1,pieceY)){pieceX++;drawBoard();} });
-    document.getElementById('btn-rotate').addEventListener('click', () => { if (!started){startGame();return;} const r=rotate(piece); if(!collides(r,pieceX,pieceY)){piece=r;drawBoard();} });
-    document.getElementById('btn-down').addEventListener('click',   () => { if (!started){startGame();return;} hardDrop(); resetTimer(); });
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', e => {
+      if (touchStartX === null) return;
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      const absDx = Math.abs(dx), absDy = Math.abs(dy);
+
+      if (!started) { startGame(); touchStartX = null; return; }
+      if (!running)  { touchStartX = null; return; }
+
+      if (absDx < SWIPE_THRESHOLD && absDy < SWIPE_THRESHOLD) {
+        // Kurzes Antippen → Drehen
+        tryRotate();
+      } else if (absDx >= absDy) {
+        // Horizontal wischen → links / rechts
+        if (dx < 0) { if (!collides(piece, pieceX-1, pieceY)) { pieceX--; drawBoard(); } }
+        else         { if (!collides(piece, pieceX+1, pieceY)) { pieceX++; drawBoard(); } }
+      } else {
+        // Vertikal wischen
+        if (dy > 0) { hardDrop(); resetTimer(); }  // nach unten → fallen lassen
+        else        { tryRotate(); }               // nach oben → drehen
+      }
+
+      touchStartX = null;
+    }, { passive: false });
 
     board = newBoard(); piece = PIECES[0]; pieceX = 4; pieceY = 0;
     drawBoard();

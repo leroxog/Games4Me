@@ -14,14 +14,12 @@
   <p class="score-display">Score: <span id="score">0</span></p>
   <canvas id="canvas"></canvas>
   <p class="hint" id="hint">Tippe / Leertaste zum Starten & Springen</p>
-  <button class="jump-btn" id="jump-btn" aria-label="Springen">SPRINGEN</button>
 
   <script>
     const canvas  = document.getElementById('canvas');
     const ctx     = canvas.getContext('2d');
     const scoreEl = document.getElementById('score');
     const hintEl  = document.getElementById('hint');
-    const jumpBtn = document.getElementById('jump-btn');
 
     const H = 160, GROUND = 120;
     let W;
@@ -159,7 +157,7 @@
 
     document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); jump(); } });
     canvas.addEventListener('click', jump);
-    jumpBtn.addEventListener('click', jump);
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); jump(); }, { passive: false });
 
     init(); draw();
   </script>
